@@ -842,9 +842,10 @@ class TestReadHtml(object):
 
     def test_computer_sales_page(self):
         data = os.path.join(DATA_PATH, 'computer_sales_page.html')
-        # This table is unique because it has no <thead>, and its <th>-only rows
-        # are underneath an initial <td>-only row that has no content. After
-        # skipping the empty row, header=[0,1] picks the two <th>-only rows.
+        # This table is unique because it has no <thead>, and its <th>-only
+        # rows are underneath an initial <td>-only row that has no content.
+        # After #kipping the empty row, header=[0,1] picks the two <th>-only
+        # rows.
         df = self.read_html(data, header=[0, 1])[0]
         assert df.columns[3] == ('Three months ended April\xa030', '2013.1')
         assert df['Three months ended April\xa030', '2013.1'][2] == '3718'
