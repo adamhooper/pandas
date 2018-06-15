@@ -14,7 +14,7 @@ from numpy.random import rand
 
 from pandas import (DataFrame, MultiIndex, read_csv, Timestamp, Index,
                     date_range, Series)
-from pandas.compat import (map, zip, StringIO, BytesIO,
+from pandas.compat import (map, zip, u, StringIO, BytesIO,
                            is_platform_windows, PY3, reload)
 from pandas.io.common import URLError, file_path_to_url
 import pandas.io.html
@@ -911,7 +911,8 @@ class TestReadHtml(object):
         # After #kipping the empty row, header=[0,1] picks the two <th>-only
         # rows.
         df = self.read_html(data, header=[0, 1])[0]
-        assert df.columns[3] == ('Three months ended April\xa030', '2013.1')
+        assert df.columns[3] == (u('Three months ended April\xa030'),
+                                 u('2013.1'))
         assert df['Three months ended April\xa030', '2013.1'][2] == '3718'
 
     def test_wikipedia_states_table(self):
