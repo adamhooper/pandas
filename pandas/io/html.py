@@ -443,58 +443,73 @@ class _HtmlFrameParser(object):
         """
 
         all_texts = []  # list of rows, each a list of str
-        remainder = []  # list of (index, text, nrows)
+        # saved_rowspans: list of None or (text, n_rows_remaining) as long as
+        # the longest row. The index determines the column number.
+        saved_rowspans = []
+
+        def pop_saved_rowspan(index):
+            if saved_rowspans[index]:
+                text, rowspan = saved_rowspans[index]
+                if rowspan > 1:
+                    saved_rowspans[index] = (text, rowspan - 1)
+                else:
+                    saved_rowspans[index] = None
+                return text
+            else:
+                return ''
 
         for tr in rows:
-            texts = []  # the output for this row
-            next_remainder = []
-
-            index = 0
             tds = self._parse_td(tr)
-            for td in tds:
-                # Append texts from previous rows with rowspan>1 that come
-                # before this <td>
-                while remainder and remainder[0][0] <= index:
-                    prev_i, prev_text, prev_rowspan = remainder.pop(0)
-                    texts.append(prev_text)
-                    if prev_rowspan > 1:
-                        next_remainder.append((prev_i, prev_text,
-                                               prev_rowspan - 1))
-                    index += 1
+            td_texts = [_remove_whitespace(self._text_getter(td))
+                        for td in tds]
+            colspans = [int(self._attr_getter(td, 'colspan') or '1')
+                        for td in tds]
+            rowspans = [int(self._attr_getter(td, 'rowspan') or '1')
+                        for td in tds]
 
-                # Append the text from this <td>, colspan times
-                text = _remove_whitespace(self._text_getter(td))
-                rowspan = int(self._attr_getter(td, 'rowspan') or 1)
-                colspan = int(self._attr_getter(td, 'colspan') or 1)
+            # Make sure saved_rowspans is at least as wide as this row, so we
+            # can index into it safely
+            row_length = sum(colspans) + len([x for x in saved_rowspans if x])
+            n_new_columns = row_length - len(saved_rowspans)
+            if n_new_columns > 0:
+                saved_rowspans.extend([None] * n_new_columns)
 
+            # Iterate over this row's text+colspan+rowspan <td>s...
+            texts = []  # the output for this row
+            index = 0  # len(texts) -- that is, the current column index
+
+            for text, colspan, rowspan in zip(td_texts, colspans, rowspans):
+                # Handle colspan: just treat it as though we had `colspan`
+                # cells, each with identical `text` and `rowspan`.
                 for _ in range(colspan):
+                    # If saved_rowspans has text at this index, that's text
+                    # from the previous row and it belongs _before_ the text
+                    # in the <td> we're inspecting right now.
+                    while saved_rowspans[index]:
+                        texts.append(pop_saved_rowspan(index))
+                        index += 1
+                    # Now, saved_rowspans[index] is None
+
                     texts.append(text)
                     if rowspan > 1:
-                        next_remainder.append((index, text, rowspan - 1))
+                        saved_rowspans[index] = (text, rowspan - 1)
                     index += 1
 
-            # Append texts from previous rows at the final position
-            for prev_i, prev_text, prev_rowspan in remainder:
-                texts.append(prev_text)
-                if prev_rowspan > 1:
-                    next_remainder.append((prev_i, prev_text,
-                                           prev_rowspan - 1))
+            # Copy all final values for this row from saved_rowspans. They
+            # may be all-None, which would make us add harmless empty
+            # strings.
+            while index < len(saved_rowspans):
+                texts.append(pop_saved_rowspan(index))
+                index += 1
 
+            # Done with this row
             all_texts.append(texts)
-            remainder = next_remainder
 
         # Append rows that only appear because the previous row had non-1
         # rowspan
-        while remainder:
-            next_remainder = []
-            texts = []
-            for prev_i, prev_text, prev_rowspan in remainder:
-                texts.append(prev_text)
-                if prev_rowspan > 1:
-                    next_remainder.append((prev_i, prev_text,
-                                           prev_rowspan - 1))
-            all_texts.append(texts)
-            remainder = next_remainder
+        while any(x for x in saved_rowspans):
+            all_texts.append([pop_saved_rowspan(i)
+                              for i in range(len(saved_rowspans))])
 
         # ignore all-empty-text rows
         no_empty = [row for row in all_texts
