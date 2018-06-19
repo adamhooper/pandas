@@ -945,9 +945,10 @@ class TestReadHtml(object):
         # After #kipping the empty row, header=[0,1] picks the two <th>-only
         # rows.
         df = self.read_html(data, header=[0, 1])[0]
-        assert df.columns[3] == (u('Three months ended April\xa030'),
-                                 u('2013.1'))
-        assert df['Three months ended April\xa030', '2013.1'][2] == '3718'
+
+        three_months = u('Three months ended April\xa030')
+        assert df.columns[3] == (three_months, '2013.1')
+        assert df[three_months, '2013.1'][2] == '3718'
 
     def test_wikipedia_states_table(self):
         data = os.path.join(DATA_PATH, 'wikipedia_states.html')
